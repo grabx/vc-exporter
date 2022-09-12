@@ -7,9 +7,37 @@ import (
 	"time"
 
 	vcclient "github.com/grabx/vcclient"
+	"github.com/kardianos/service"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+var (
+	logger service.Logger
+)
+
+// Initialize program to run in background
+type program struct{}
+
+// Handle windows service start
+func (p *program) Start(s service.Service) error {
+	// Start should not block. Do the actual work async.
+	go p.run()
+	return nil
+}
+
+// Handle program logic in background
+func (p *program) run() {
+	http.Handle("/metrics", promhttp.Handler())
+	log.Fatal(http.ListenAndServe(":8008", nil))
+}
+
+// Handle service stop request
+func (p *program) Stop(s service.Service) error {
+	log.Println("Stopping agent.")
+	// Stop should not block. Return with a few seconds.
+	return nil
+}
 
 /*
 Struct contains the mandatory descriptors
@@ -29,7 +57,7 @@ func newjobCollector() *jobCollector {
 	return &jobCollector{
 		jobActiveMetric: prometheus.NewDesc(
 			"job_active",
-			"Displays whether the job is active or not. 1 = Actice, 2 = Inactive",
+			"Displays whether the job is active or not. 1 = Actice, 0 = Inactive",
 			[]string{"jobName", "jobId"}, nil),
 		jobExitCode: prometheus.NewDesc(
 			"job_exit_code",
@@ -49,7 +77,7 @@ func newjobCollector() *jobCollector {
 			[]string{"jobName", "jobId"}, nil),
 		jobStatus: prometheus.NewDesc(
 			"job_status",
-			"Displays the jobs statu. 1 = Waiting, 0 = Running",
+			"Displays the jobs status. 1 = Waiting, 0 = Running",
 			[]string{"jobName", "jobId"}, nil),
 	}
 
@@ -66,6 +94,7 @@ func (collector *jobCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.jobStatus
 }
 
+// Collect metrics and send them to the metrics channel of our metrics
 func (collector *jobCollector) Collect(ch chan<- prometheus.Metric) {
 	jobs := getJobData()
 	for _, job := range *jobs {
@@ -126,6 +155,7 @@ func (collector *jobCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
+// Request job data from visual cron api client
 func getJobData() *[]vcclient.Jobs {
 	ctx := context.TODO()
 	c := vcclient.NewClient(
@@ -144,7 +174,25 @@ func init() {
 	prometheus.MustRegister(collector)
 }
 
+// Run interactively or handle being run as windows service
 func main() {
-	http.Handle("/metrics", promhttp.Handler())
-	log.Fatal(http.ListenAndServe(":8008", nil))
+	svcConfig := &service.Config{
+		Name:        "VCMonitor",
+		DisplayName: "VisualCron Monitor",
+		Description: "Monitors job execution and states via the REST API",
+	}
+
+	prg := &program{}
+	s, err := service.New(prg, svcConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+	logger, err = s.Logger(nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = s.Run()
+	if err != nil {
+		logger.Error(err)
+	}
 }

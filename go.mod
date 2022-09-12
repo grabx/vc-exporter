@@ -3,7 +3,8 @@ module github.com/grabx/vc-exporter
 go 1.19
 
 require (
-	github.com/grabx/vcclient v0.1.3
+	github.com/grabx/vcclient v0.1.4
+	github.com/kardianos/service v1.2.1
 	github.com/prometheus/client_golang v1.13.0
 )
 
