@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"time"
 
 	vcclient "github.com/grabx/vcclient"
 	"github.com/kardianos/service"
@@ -110,18 +109,6 @@ func (collector *jobCollector) Collect(ch chan<- prometheus.Metric) {
 		} else {
 			missed = 0
 		}
-		var lastExecution time.Time
-		if lastExec, err := time.Parse(time.RFC3339, job.Stats.DateLastExecution); err != nil {
-			lastExecution = time.Time{}
-		} else {
-			lastExecution = lastExec
-		}
-		var lastMissed time.Time
-		if lastMiss, err := time.Parse(time.RFC3339, job.MissedDate); err != nil {
-			lastMissed = time.Time{}
-		} else {
-			lastMissed = lastMiss
-		}
 		ch <- prometheus.MustNewConstMetric(
 			collector.jobActiveMetric,
 			prometheus.GaugeValue,
@@ -132,26 +119,26 @@ func (collector *jobCollector) Collect(ch chan<- prometheus.Metric) {
 			prometheus.GaugeValue,
 			float64(job.Stats.Status), job.Name, job.ID,
 		)
-		ch <- prometheus.NewMetricWithTimestamp(lastExecution, prometheus.MustNewConstMetric(
+		ch <- prometheus.MustNewConstMetric(
 			collector.jobExitCode,
 			prometheus.GaugeValue,
 			float64(job.Stats.ExitCode), job.Name, job.ID,
-		))
-		ch <- prometheus.NewMetricWithTimestamp(lastExecution, prometheus.MustNewConstMetric(
+		)
+		ch <- prometheus.MustNewConstMetric(
 			collector.jobExitCodeResult,
 			prometheus.GaugeValue,
 			float64(job.Stats.ExitCodeResult), job.Name, job.ID,
-		))
-		ch <- prometheus.NewMetricWithTimestamp(lastMissed, prometheus.MustNewConstMetric(
+		)
+		ch <- prometheus.MustNewConstMetric(
 			collector.jobMissed,
 			prometheus.GaugeValue,
 			missed, job.Name, job.ID,
-		))
-		ch <- prometheus.NewMetricWithTimestamp(lastExecution, prometheus.MustNewConstMetric(
+		)
+		ch <- prometheus.MustNewConstMetric(
 			collector.jobExecutionTime,
 			prometheus.GaugeValue,
 			job.Stats.ExecutionTime, job.Name, job.ID,
-		))
+		)
 	}
 }
 
